@@ -13,78 +13,83 @@ import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.entity.animal.Bee;
 import net.minecraft.world.level.pathfinder.Path;
 
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 public class FindFlowerTask extends Behavior<Bee> {
 
-    // REMOVED: private BlockPos flowerPosPublic; (Prevents the Hive Mind bug!)
-
     public FindFlowerTask() {
         super(Map.of(
-                ModMemoryTypes.POLLINATING_COOLDOWN, MemoryStatus.VALUE_ABSENT
-                // If you want to require FLOWER_POS to be absent to start searching, add it here:
-                // ModMemoryTypes.FLOWER_POS, MemoryStatus.VALUE_ABSENT
+                ModMemoryTypes.POLLINATING_COOLDOWN, MemoryStatus.VALUE_ABSENT,
+                ModMemoryTypes.FLOWER_POS, MemoryStatus.VALUE_ABSENT // Only start if we don't have a target
         ));
     }
 
     @Override
     protected boolean checkExtraStartConditions(ServerLevel world, Bee entity) {
-        // Only look for a flower if they don't have nectar and aren't on cooldown
-        return !entity.hasNectar() && entity.getBrain().getMemory(ModMemoryTypes.POLLINATING_COOLDOWN).isEmpty();
+        // Only look for a flower if they don't have nectar and aren't wanting a hive
+        boolean wantsHive = entity.getBrain().getMemory(ModMemoryTypes.WANTS_HIVE).orElse(false);
+        return !entity.hasNectar() && !wantsHive;
     }
 
     @Override
-    protected void start(ServerLevel serverLevel, Bee bee, long l) {
-        // Vanilla bee flower finding logic is usually handled by a sensor or POI search.
-        // Assuming your custom logic finds a BlockPos here, immediately save it to the Bee's brain:
-
-        BlockPos foundFlowerPos = findNearbyFlower(serverLevel, bee); // Replace with your actual search logic
+    protected void start(ServerLevel level, Bee bee, long l) {
+        BlockPos foundFlowerPos = findNearbyFlower(level, bee);
 
         if (foundFlowerPos != null) {
-            bee.getBrain().setMemory(ModMemoryTypes.FLOWER_POS, GlobalPos.of(serverLevel.dimension(), foundFlowerPos));
+            // Set the memory immediately so tick() and canStillUse() work
+            bee.getBrain().setMemory(ModMemoryTypes.FLOWER_POS, GlobalPos.of(level.dimension(), foundFlowerPos));
+        } else {
+            // If no flower found, set cooldown so we don't lag the server scanning every tick
+            bee.getBrain().setMemory(ModMemoryTypes.POLLINATING_COOLDOWN, UniformInt.of(120, 240).sample(level.getRandom()));
         }
     }
 
     @Override
-    protected boolean canStillUse(ServerLevel serverLevel, Bee bee, long l) {
-        return bee.getBrain().getMemory(ModMemoryTypes.FLOWER_POS).isPresent();
+    protected boolean canStillUse(ServerLevel level, Bee bee, long l) {
+        return bee.getBrain().hasMemoryValue(ModMemoryTypes.FLOWER_POS) && !bee.hasNectar();
     }
 
     @Override
     protected void tick(ServerLevel level, Bee bee, long l) {
-        Optional<GlobalPos> flowerPosOpt = bee.getBrain().getMemory(ModMemoryTypes.FLOWER_POS);
+        bee.getBrain().getMemory(ModMemoryTypes.FLOWER_POS).ifPresent(globalPos -> {
+            BlockPos pos = globalPos.pos();
 
-        if (flowerPosOpt.isPresent()) {
-            BlockPos flowerPos = flowerPosOpt.get().pos();
-            BehaviorUtils.setWalkAndLookTargetMemories(bee, flowerPos, 0.4F, 1);
+            // 1. Move and Look
+            BehaviorUtils.setWalkAndLookTargetMemories(bee, pos, 0.4F, 1);
 
-            Path path = bee.getNavigation().createPath(flowerPos, 1);
+            // 2. Check reachability
+            Path path = bee.getNavigation().createPath(pos, 1);
             if (path != null && path.canReach()) {
                 bee.getNavigation().moveTo(path, 0.6);
 
-                // If they reached the flower, we can transition to pollinating
-                if (bee.blockPosition().closerThan(flowerPos, 2) && level.getBlockState(flowerPos).is(BlockTags.FLOWERS)) {
-                    // Logic to start pollinating or stop moving
+                // 3. Arrival Logic
+                if (bee.blockPosition().closerThan(pos, 2)) {
+                    // Bee has arrived! The PollinateTask (if you have one) should take over now.
                     bee.getNavigation().stop();
                 }
             } else {
-                // Cannot reach flower, clear memory and apply cooldown
+                // Path blocked or impossible
                 bee.getBrain().eraseMemory(ModMemoryTypes.FLOWER_POS);
-                bee.getBrain().setMemory(ModMemoryTypes.POLLINATING_COOLDOWN, UniformInt.of(120, 240).sample(level.getRandom()));
+                bee.getBrain().setMemory(ModMemoryTypes.POLLINATING_COOLDOWN, 100);
+            }
+        });
+    }
+
+    private BlockPos findNearbyFlower(ServerLevel level, Bee bee) {
+        int radius = BrainierBees.FLOWER_LOCATE_RANGE;
+        List<BlockPos> possibles = new java.util.ArrayList<>();
+
+        for (BlockPos pos : BlockPos.betweenClosed(
+                bee.blockPosition().offset(-radius, -radius, -radius),
+                bee.blockPosition().offset(radius, radius, radius))) {
+
+            if (level.getBlockState(pos).is(BlockTags.FLOWERS)) {
+                // Basic waterlog check (Optional, depending on your needs)
+                possibles.add(pos.relative(net.minecraft.core.Direction.UP).below());
             }
         }
-    }
 
-    @Override
-    protected void stop(ServerLevel serverLevel, Bee bee, long l) {
-        super.stop(serverLevel, bee, l);
-        // Any stopping logic you had
-    }
-
-    // Stub for your actual search logic
-    private BlockPos findNearbyFlower(ServerLevel level, Bee bee) {
-        // Your logic to scan blocks around the bee within BrainierBees.FLOWER_LOCATE_RANGE
-        return null;
+        return possibles.isEmpty() ? null : possibles.get(level.random.nextInt(possibles.size()));
     }
 }
