@@ -172,10 +172,12 @@ public abstract class BeeMixin extends Animal implements HiveAccessor {
         this.HoneyCooldown = compoundTag.getInt("HoneyCooldown");
     }
 
-    @Inject(method = "getBreedOffspring(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/AgeableMob;)Lnet/minecraft/world/entity/animal/Bee;", at = @At("HEAD"))
+    @Inject(method = "getBreedOffspring(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/AgeableMob;)Lnet/minecraft/world/entity/animal/Bee;", at = @At("RETURN"))
     public void getBreedOffspring(ServerLevel serverLevel, AgeableMob ageableMob, CallbackInfoReturnable<Bee> cir) {
-        if (ageableMob != null) {
-            BeeBrain.initMemories((Bee) ageableMob, ageableMob.getRandom());
+        Bee baby = cir.getReturnValue();
+        if (baby != null) {
+            // Initialize the baby's brain, not the partner's!
+            BeeBrain.initMemories(baby, baby.getRandom());
         }
     }
 
