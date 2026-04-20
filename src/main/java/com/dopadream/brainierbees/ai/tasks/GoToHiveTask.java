@@ -54,7 +54,6 @@ public class GoToHiveTask extends Behavior<Bee> {
     @Override
     protected void start(ServerLevel serverLevel, Bee bee, long l) {
         super.start(serverLevel, bee, l);
-        bee.getBrain().eraseMemory(MemoryModuleType.BREED_TARGET);
         bee.resetLove();
     }
 
