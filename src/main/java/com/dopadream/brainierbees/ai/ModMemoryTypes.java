@@ -37,4 +37,11 @@ public class ModMemoryTypes {
     public static <U> MemoryModuleType<U> register(String id) {
         return MEMORY_MODULES.register(id, MemoryModuleAccessor.createMemoryModuleType(Optional.empty()));
     }
+
+    public static void init() {
+        // Calling this empty method from BrainierBees.java forces Java to load this class.
+        // Once loaded, all the 'public static final' fields above are executed, safely registering your memory types!
+
+        // Note: If your custom 'CoreRegistry' class requires a setup method, like MEMORY_MODULES.register(), add it here.
+    }
 }

@@ -11,9 +11,11 @@ public class BrainierBees implements ModInitializer {
     public static String MOD_ID = "brainierbees";
     private static final Logger LOGGER = LogManager.getLogger(BrainierBees.MOD_ID);
 
-    public SimpleConfig CONFIG = SimpleConfig.of( MOD_ID ).provider( this::provider ).request();
+    // 1. Made CONFIG static and changed to BrainierBees::provider
+    public static final SimpleConfig CONFIG = SimpleConfig.of( MOD_ID ).provider( BrainierBees::provider ).request();
 
-    public String provider(String filename) {
+    // 2. Made provider static
+    public static String provider(String filename) {
         return """
                 #Config for Brainier Bees
                 #Setting any of these values too high may cause instability and performance issues!
@@ -29,12 +31,15 @@ public class BrainierBees implements ModInitializer {
                 """;
     }
 
-    public final int MAX_WANDER_RADIUS = CONFIG.getOrDefault( "maxWanderRadius", 22 );
-    public final int FLOWER_LOCATE_RANGE = CONFIG.getOrDefault( "flowerLocateRange", 8 );
+    // 3. Made the config values static so they can be read by your AI Tasks
+    public static final int MAX_WANDER_RADIUS = CONFIG.getOrDefault( "maxWanderRadius", 22 );
+    public static final int FLOWER_LOCATE_RANGE = CONFIG.getOrDefault( "flowerLocateRange", 8 );
 
 
     @Override
     public void onInitialize() {
-        ModMemoryTypes.MEMORY_MODULES.register();
+        // Your initialization code remains here...
+        ModMemoryTypes.init();
+        LOGGER.info("Brainier Bees initialized!");
     }
 }
