@@ -1,6 +1,5 @@
 package com.dopadream.brainierbees.ai.tasks;
 
-import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
@@ -12,6 +11,7 @@ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.player.Player;
 
+import java.util.Optional;
 import java.util.function.Function;
 
 public class BetterFollowTemptation extends FollowTemptation {
@@ -25,14 +25,25 @@ public class BetterFollowTemptation extends FollowTemptation {
 
     @Override
     protected void tick(ServerLevel serverLevel, PathfinderMob pathfinderMob, long l) {
-        Player player = this.getTemptingPlayer(pathfinderMob).get();
+        // 1. Safely retrieve the optional player
+        Optional<Player> optionalPlayer = this.getTemptingPlayer(pathfinderMob);
+
+        // 2. CRITICAL FIX: If the player stops tempting, abort the tick to prevent a crash
+        if (optionalPlayer.isEmpty()) {
+            return;
+        }
+
+        Player player = optionalPlayer.get();
         Brain<?> brain = pathfinderMob.getBrain();
+
         brain.setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(player, true));
         double d = this.closeEnoughDistance.apply(pathfinderMob);
+
+        // 3. The cleaned-up .above() check we discussed earlier!
         if ((pathfinderMob.distanceToSqr(player) < Mth.square(d)) || !(serverLevel.getBlockState(player.blockPosition().above()).isAir())) {
             brain.eraseMemory(MemoryModuleType.WALK_TARGET);
         } else {
-            brain.setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(new BlockPos(player.blockPosition().getX(), player.blockPosition().getY()+2, player.blockPosition().getZ()), this.getSpeedModifier(pathfinderMob), 1));
+            brain.setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(new EntityTracker(player, false), this.getSpeedModifier(pathfinderMob), 2));
         }
     }
 }
