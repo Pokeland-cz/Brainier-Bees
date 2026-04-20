@@ -29,7 +29,7 @@ public class BetterFollowTemptation extends FollowTemptation {
         Brain<?> brain = pathfinderMob.getBrain();
         brain.setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(player, true));
         double d = this.closeEnoughDistance.apply(pathfinderMob);
-        if ((pathfinderMob.distanceToSqr(player) < Mth.square(d)) || !(serverLevel.getBlockState(BlockPos.of(BlockPos.asLong(player.blockPosition().getX(), player.blockPosition().getY()+1, player.blockPosition().getZ()))).isAir())) {
+        if ((pathfinderMob.distanceToSqr(player) < Mth.square(d)) || !(serverLevel.getBlockState(player.blockPosition().above()).isAir())) {
             brain.eraseMemory(MemoryModuleType.WALK_TARGET);
         } else {
             brain.setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(new BlockPos(player.blockPosition().getX(), player.blockPosition().getY()+2, player.blockPosition().getZ()), this.getSpeedModifier(pathfinderMob), 1));

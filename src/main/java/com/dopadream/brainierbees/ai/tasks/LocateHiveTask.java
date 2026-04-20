@@ -12,25 +12,20 @@ import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.ai.village.poi.PoiRecord;
 import net.minecraft.world.entity.animal.Bee;
 import net.minecraft.world.level.block.entity.BeehiveBlockEntity;
-import net.minecraft.world.level.block.entity.BlockEntity;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.Optional;
 
 public class LocateHiveTask extends Behavior<Bee> {
 
-    private ServerLevel level;
-
     public LocateHiveTask() {
-        super(Map.of(ModMemoryTypes.COOLDOWN_LOCATE_HIVE, MemoryStatus.VALUE_ABSENT));
-    }
-
-    @Override
-    protected boolean checkExtraStartConditions(ServerLevel serverLevel, Bee bee) {
-        return bee.getBrain().getMemory(ModMemoryTypes.COOLDOWN_LOCATE_HIVE).isEmpty() && bee.getBrain().getMemory(ModMemoryTypes.HIVE_POS).isEmpty();
+        // Optimally, declare all memory requirements here so the Brain skips execution immediately if conditions fail.
+        super(Map.of(
+                ModMemoryTypes.COOLDOWN_LOCATE_HIVE, MemoryStatus.VALUE_ABSENT,
+                ModMemoryTypes.HIVE_POS, MemoryStatus.VALUE_ABSENT
+        ));
     }
 
     @Override
@@ -38,40 +33,35 @@ public class LocateHiveTask extends Behavior<Bee> {
         return false;
     }
 
-
     @Override
     protected void start(ServerLevel level, Bee bee, long l) {
         bee.getBrain().setMemory(ModMemoryTypes.COOLDOWN_LOCATE_HIVE, 200);
-        this.level = level;
-        List<BlockPos> list = this.findNearbyHivesWithSpace(level, bee);
-        if (!list.isEmpty()) {
-            for(BlockPos blockPos : list) {
-                if (bee.getBrain().getMemory(ModMemoryTypes.HIVE_BLACKLIST).isEmpty() || !bee.getBrain().getMemory(ModMemoryTypes.HIVE_BLACKLIST).get().contains(GlobalPos.of(bee.level().dimension(), blockPos))) {
-                    bee.getBrain().setMemory(ModMemoryTypes.HIVE_POS, GlobalPos.of(level.dimension(), blockPos));
-//                    ((BeeAccessor)bee).setHivePos(blockPos);
-                    ((HiveAccessor)bee).setMemorizedHome(blockPos);
-                    return;
-                }
-            }
-        }
-    }
 
-    private boolean doesHiveHaveSpace(BlockPos blockPos) {
-        BlockEntity blockEntity = level.getBlockEntity(blockPos);
-        if (blockEntity instanceof BeehiveBlockEntity) {
-            return !((BeehiveBlockEntity)blockEntity).isFull();
-        } else {
-            return false;
-        }
-    }
-
-    private List<BlockPos> findNearbyHivesWithSpace(ServerLevel level, Bee bee) {
-        BlockPos blockPos = bee.blockPosition();
+        BlockPos currentPos = bee.blockPosition();
         PoiManager poiManager = level.getPoiManager();
-        Stream<PoiRecord> stream = poiManager.getInRange(holder -> holder.is(PoiTypeTags.BEE_HOME), blockPos, 20, PoiManager.Occupancy.ANY);
-        return stream.map(PoiRecord::getPos)
-                .filter(this::doesHiveHaveSpace)
-                .sorted(Comparator.comparingDouble(blockPos2 -> blockPos2.distSqr(blockPos)))
-                .collect(Collectors.toList());
+
+        // Fetch the blacklist once rather than repeatedly in a loop
+        Optional<List<GlobalPos>> blacklistOpt = bee.getBrain().getMemory(ModMemoryTypes.HIVE_BLACKLIST);
+
+        // Utilize lazy evaluation to find the first valid hive without checking every BlockEntity
+        poiManager.getInRange(holder -> holder.is(PoiTypeTags.BEE_HOME), currentPos, 20, PoiManager.Occupancy.ANY)
+                .map(PoiRecord::getPos)
+                // 1. Cheap Check: Filter out blacklisted hives first
+                .filter(pos -> blacklistOpt.isEmpty() || !blacklistOpt.get().contains(GlobalPos.of(level.dimension(), pos)))
+                // 2. Cheap Math: Sort by distance
+                .sorted(Comparator.comparingDouble(pos -> pos.distSqr(currentPos)))
+                // 3. Expensive Check: Filter by capacity last
+                .filter(pos -> doesHiveHaveSpace(level, pos))
+                // 4. Lazy Execution: Only check until we find the first valid one
+                .findFirst()
+                .ifPresent(bestHivePos -> {
+                    bee.getBrain().setMemory(ModMemoryTypes.HIVE_POS, GlobalPos.of(level.dimension(), bestHivePos));
+                    ((HiveAccessor) bee).setMemorizedHome(bestHivePos);
+                });
+    }
+
+    private boolean doesHiveHaveSpace(ServerLevel level, BlockPos blockPos) {
+        // Modern Java instance matching prevents casting boilerplate
+        return level.getBlockEntity(blockPos) instanceof BeehiveBlockEntity beehive && !beehive.isFull();
     }
 }

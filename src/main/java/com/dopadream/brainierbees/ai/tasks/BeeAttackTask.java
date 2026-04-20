@@ -19,7 +19,7 @@ public class BeeAttackTask extends MeleeAttack {
     }
 
     private LivingEntity getAttackTarget(Mob mob) {
-        return (LivingEntity)mob.getBrain().getMemory(MemoryModuleType.ATTACK_TARGET).get();
+        return (LivingEntity)mob.getBrain().getMemory(MemoryModuleType.ATTACK_TARGET).orElse(null);
     }
 
 }

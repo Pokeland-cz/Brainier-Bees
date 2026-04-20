@@ -78,11 +78,8 @@ public class GoToHiveTask extends Behavior<Bee> {
             if (!bl) {
                 ((HiveAccessor) bee).dropAndBlacklistHive(bee);
             } else if (bee.getBrain().getMemory(ModMemoryTypes.LAST_PATH).isPresent() && bee.getNavigation().getPath().sameAs(bee.getBrain().getMemory(ModMemoryTypes.LAST_PATH).get())) {
-                if (!bee.getBrain().hasMemoryValue(ModMemoryTypes.STUCK_TICKS)) {
-                    bee.getBrain().setMemory(ModMemoryTypes.STUCK_TICKS, 1);
-                } else {
-                    bee.getBrain().setMemory(ModMemoryTypes.STUCK_TICKS, bee.getBrain().getMemory(ModMemoryTypes.STUCK_TICKS).get() + 1);
-                }
+                int stuckTicks = bee.getBrain().getMemory(ModMemoryTypes.STUCK_TICKS).orElse(0);
+                bee.getBrain().setMemory(ModMemoryTypes.STUCK_TICKS, stuckTicks + 1);
                 if (bee.getBrain().getMemory(ModMemoryTypes.STUCK_TICKS).isPresent() && bee.getBrain().getMemory(ModMemoryTypes.STUCK_TICKS).get() > 600) {
                     ((HiveAccessor) bee).dropAndBlacklistHive(bee);
                 }
