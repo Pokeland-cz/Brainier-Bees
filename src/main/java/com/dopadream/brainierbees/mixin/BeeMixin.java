@@ -214,7 +214,6 @@ public abstract class BeeMixin extends Animal implements HiveAccessor {
                 SensorType.NEAREST_PLAYERS,
                 SensorType.HURT_BY,
                 SensorType.NEAREST_ADULT,
-                SensorType.NEAREST_LIVING_ENTITIES,
                 ModSensorTypes.BEE_TEMPTATIONS);
         MEMORY_TYPES = ImmutableList.of(MemoryModuleType.PATH,
                 MemoryModuleType.BREED_TARGET,

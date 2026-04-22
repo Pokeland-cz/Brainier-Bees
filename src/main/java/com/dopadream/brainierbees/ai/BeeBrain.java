@@ -94,7 +94,17 @@ public class BeeBrain {
                 ImmutableList.of(
                         Pair.of(9, new FloatTask()),
                         Pair.of(9, new GrowCropTask()),
-                        Pair.of(3, new AnimalMakeLove(EntityType.BEE)),
+                        Pair.of(3, new AnimalMakeLove(EntityType.BEE) {
+                            @Override
+                            protected boolean checkExtraStartConditions(net.minecraft.server.level.ServerLevel level, net.minecraft.world.entity.animal.Animal owner) {
+                                // Prevent the task from running (and crashing) if the sensor hasn't populated this yet
+                                if (!owner.getBrain().hasMemoryValue(MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES)) {
+                                    return false;
+                                }
+                                return super.checkExtraStartConditions(level, owner);
+                            }
+                        }),
+
                         Pair.of(4, new BetterFollowTemptation(livingEntity -> 0.6F)),
                         Pair.of(1, BabyFollowAdult.create(ADULT_FOLLOW_RANGE, 1.25F)),
                         Pair.of(5, new LocateHiveTask()),
@@ -102,7 +112,7 @@ public class BeeBrain {
                         Pair.of(2, new EnterHiveTask()),
                         Pair.of(
                                 9,
-                                new RunOne(
+                                new RunOne<>(
                                         ImmutableList.of(
                                                 Pair.of(new BeePathfinding(), 1))
                                 )
@@ -111,8 +121,6 @@ public class BeeBrain {
                 ImmutableSet.of(Pair.of(MemoryModuleType.ATTACK_TARGET, MemoryStatus.VALUE_ABSENT))
         );
     }
-
-
 
     public static void updateActivity(Bee bee) {
         bee.getBrain().setActiveActivityToFirstValid(ImmutableList.of(Activity.FIGHT,  Activity.CELEBRATE, Activity.IDLE));
